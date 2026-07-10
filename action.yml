@@ -1,0 +1,119 @@
+name: 'CI Triage Agent'
+description: >
+  Runs Trivy + Semgrep scans against the calling repo and posts an AI-triaged
+  PR comment separating confirmed vulnerabilities from noise, using AWS
+  Bedrock (Claude Haiku) as the classifier.
+author: 'Kere Ekpenyong'
+
+inputs:
+  aws-access-key-id:
+    description: 'AWS access key ID for Bedrock. Pass as a secret from the caller workflow.'
+    required: true
+  aws-secret-access-key:
+    description: 'AWS secret access key for Bedrock. Pass as a secret from the caller workflow.'
+    required: true
+  aws-region:
+    description: 'AWS region for Bedrock.'
+    required: false
+    default: 'us-east-1'
+  bedrock-model-id:
+    description: 'Bedrock inference profile ID for the classifier model.'
+    required: false
+    default: 'us.anthropic.claude-haiku-4-5-20251001-v1:0'
+  bedrock-max-tokens:
+    description: 'Max output tokens for the classifier call.'
+    required: false
+    default: '4096'
+  bedrock-temperature:
+    description: 'Sampling temperature for the classifier call.'
+    required: false
+    default: '0'
+  semgrep-config:
+    description: 'Semgrep ruleset to run.'
+    required: false
+    default: 'p/ci'
+  trivy-severity:
+    description: 'Comma-separated Trivy severities to scan for.'
+    required: false
+    default: 'CRITICAL,HIGH,MEDIUM'
+  github-token:
+    description: 'Token used to post/update the PR comment. Defaults to the caller workflow token.'
+    required: false
+    default: ${{ github.token }}
+  pr-number:
+    description: >
+      Pull request number to comment on. Leave unset to auto-detect from the
+      triggering pull_request event; if neither is available, the tool still
+      runs and prints the triage comment to the job log without posting.
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: pip
+        cache-dependency-path: ${{ github.action_path }}/requirements.txt
+
+    - name: Install ci-triage-agent dependencies
+      shell: bash
+      run: pip install -r "${{ github.action_path }}/requirements.txt"
+
+    - name: Run Trivy filesystem scan
+      uses: aquasecurity/trivy-action@0.28.0
+      with:
+        scan-type: fs
+        scan-ref: .
+        format: json
+        output: trivy-results.json
+        severity: ${{ inputs.trivy-severity }}
+        ignore-unfixed: true
+
+    - name: Run Semgrep
+      shell: bash
+      run: |
+        pip install semgrep
+        semgrep scan --config "${{ inputs.semgrep-config }}" --json \
+          --output semgrep-results.json . || true
+        if [ ! -f semgrep-results.json ]; then
+          echo '{"results": []}' > semgrep-results.json
+        fi
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+        aws-region: ${{ inputs.aws-region }}
+
+    # action.yml input `default:` fields can't use ${{ }} expressions (unlike
+    # `with:` in a workflow), so the pull_request-number fallback is resolved
+    # here instead, in the run: script — expressions ARE evaluated in run:
+    # steps regardless of composite vs. workflow context.
+    - name: Run ci-triage-agent
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        LLM_PROVIDER: bedrock
+        AWS_REGION: ${{ inputs.aws-region }}
+        BEDROCK_MODEL_ID: ${{ inputs.bedrock-model-id }}
+        BEDROCK_MAX_TOKENS: ${{ inputs.bedrock-max-tokens }}
+        BEDROCK_TEMPERATURE: ${{ inputs.bedrock-temperature }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: |
+        PR_NUMBER="${{ inputs.pr-number || github.event.pull_request.number }}"
+        if [ -n "$PR_NUMBER" ]; then
+          python -m src.cli \
+            --trivy-file "${{ github.workspace }}/trivy-results.json" \
+            --semgrep-file "${{ github.workspace }}/semgrep-results.json" \
+            --pr-number "$PR_NUMBER"
+        else
+          echo "No PR number available (not a pull_request event) — printing comment without posting."
+          python -m src.cli \
+            --trivy-file "${{ github.workspace }}/trivy-results.json" \
+            --semgrep-file "${{ github.workspace }}/semgrep-results.json"
+        fi

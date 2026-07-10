@@ -1,0 +1,27 @@
+{
+  "version": "1.122.0",
+  "results": [
+    {
+      "check_id": "python.lang.security.audit.eval-detected.eval-detected",
+      "path": "src/utils.py",
+      "start": {"line": 15, "col": 5},
+      "extra": {
+        "message": "Detected use of eval() which can execute arbitrary code",
+        "severity": "ERROR",
+        "metadata": {
+          "message": "Avoid eval() — use ast.literal_eval or safer alternatives"
+        }
+      }
+    },
+    {
+      "check_id": "generic.secrets.security.detected-generic-secret.detected-generic-secret",
+      "path": "tests/fixtures/dummy.env",
+      "start": {"line": 1, "col": 1},
+      "extra": {
+        "message": "Generic secret detected",
+        "severity": "WARNING",
+        "metadata": {}
+      }
+    }
+  ]
+}

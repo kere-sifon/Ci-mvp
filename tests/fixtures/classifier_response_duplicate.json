@@ -1,0 +1,9 @@
+[
+  {
+    "finding_id": "trivy:requirements.txt:CVE-2024-1234:0",
+    "verdict": "true_positive",
+    "rationale": "Known CVE with a fixed version available; dependency should be upgraded.",
+    "suggested_fix": "Upgrade requests to >= 2.32.0",
+    "confidence": "high"
+  }
+]

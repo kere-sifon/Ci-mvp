@@ -1,0 +1,30 @@
+[
+  {
+    "finding_id": "trivy:requirements.txt:CVE-2024-1234:0",
+    "verdict": "true_positive",
+    "rationale": "Known CVE with a fixed version available; dependency should be upgraded.",
+    "suggested_fix": "Upgrade requests to >= 2.32.0",
+    "confidence": "high"
+  },
+  {
+    "finding_id": "trivy-secret:src/config.py:aws-access-key-id:1",
+    "verdict": "false_positive",
+    "rationale": "Example AWS key from documentation, not a real credential.",
+    "suggested_fix": null,
+    "confidence": "high"
+  },
+  {
+    "finding_id": "semgrep:python.lang.security.audit.eval-detected.eval-detected:src/utils.py:15",
+    "verdict": "needs_review",
+    "rationale": "eval() usage may be intentional in test utilities; requires manual review.",
+    "suggested_fix": "Replace eval() with ast.literal_eval if parsing literals.",
+    "confidence": "medium"
+  },
+  {
+    "finding_id": "semgrep:generic.secrets.security.detected-generic-secret.detected-generic-secret:tests/fixtures/dummy.env:1",
+    "verdict": "false_positive",
+    "rationale": "Fixture file used only in tests, not deployed.",
+    "suggested_fix": null,
+    "confidence": "high"
+  }
+]

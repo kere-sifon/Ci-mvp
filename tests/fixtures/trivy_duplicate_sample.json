@@ -1,0 +1,39 @@
+{
+  "SchemaVersion": 2,
+  "Results": [
+    {
+      "Target": "requirements.txt",
+      "Class": "lang-pkgs",
+      "Type": "pip",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2024-1234",
+          "PkgName": "requests",
+          "InstalledVersion": "2.28.0",
+          "FixedVersion": "2.32.0",
+          "Severity": "HIGH",
+          "Title": "HTTP header injection in requests",
+          "Description": "A crafted header can cause request smuggling."
+        },
+        {
+          "VulnerabilityID": "CVE-2024-1234",
+          "PkgName": "requests",
+          "InstalledVersion": "2.28.0",
+          "FixedVersion": "2.32.0",
+          "Severity": "HIGH",
+          "Title": "HTTP header injection in requests",
+          "Description": "A crafted header can cause request smuggling."
+        },
+        {
+          "VulnerabilityID": "CVE-2024-1234",
+          "PkgName": "requests",
+          "InstalledVersion": "2.28.0",
+          "FixedVersion": "2.32.0",
+          "Severity": "HIGH",
+          "Title": "HTTP header injection in requests",
+          "Description": "A crafted header can cause request smuggling."
+        }
+      ]
+    }
+  ]
+}

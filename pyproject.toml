@@ -1,0 +1,24 @@
+[project]
+name = "ci-triage-agent"
+requires-python = ">=3.11"
+
+[tool.bandit]
+exclude_dirs = [".venv", ".git"]
+skips = ["B101"]  # assert_used (acceptable in tests)
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "B", "UP", "S"]
+ignore = [
+    "S101",  # assert (allowed in tests; bandit B101 also skipped)
+    "S603",  # subprocess — not used
+    "S607",  # partial executable path
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
