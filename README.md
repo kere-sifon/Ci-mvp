@@ -106,18 +106,40 @@ Then create an IAM role trusted by that provider, scoped to your specific repos 
 }
 ```
 
-Attach a least-privilege permissions policy scoped to just the model you're invoking:
+Attach a least-privilege permissions policy. Cross-region inference profiles (the `us.` prefix on the model ID) need **two** grants, not one: access to the inference-profile ARN itself (which, unlike a foundation-model ARN, includes your account ID), *and* access to the underlying foundation-model ARN in every region the profile can route to. Don't guess the region list — ask Bedrock directly, since AWS can add regions to a profile over time:
+
+```bash
+aws bedrock get-inference-profile \
+  --inference-profile-identifier us.anthropic.claude-haiku-4-5-20251001-v1:0 \
+  --region us-east-1
+```
+
+That returns a `models` array with the exact underlying ARNs to use below:
 
 ```json
 {
   "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Action": "bedrock:InvokeModel",
-    "Resource": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0"
-  }]
+  "Statement": [
+    {
+      "Sid": "InvokeInferenceProfile",
+      "Effect": "Allow",
+      "Action": "bedrock:InvokeModel",
+      "Resource": "arn:aws:bedrock:us-east-1:ACCOUNT_ID:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    },
+    {
+      "Sid": "InvokeUnderlyingFoundationModel",
+      "Effect": "Allow",
+      "Action": "bedrock:InvokeModel",
+      "Resource": [
+        "arn:aws:bedrock:REGION_1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+        "arn:aws:bedrock:REGION_2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0"
+      ]
+    }
+  ]
 }
 ```
+
+(Replace `REGION_1`/`REGION_2`/etc. with whatever `get-inference-profile` actually returned — granting only the inference-profile ARN and omitting the foundation-model grant is a common mistake that fails with `AccessDeniedException` on the first real invoke.)
 
 Then, in each calling repo:
 
