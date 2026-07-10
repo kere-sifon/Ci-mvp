@@ -8,6 +8,18 @@ All notable changes to this project are documented here. Versioning follows
 - **MINOR** — new input, new capability, backwards-compatible.
 - **PATCH** — bug fix, no interface change.
 
+## [v1.1.1] — 2026-07-10
+
+### Fixed
+- `trivy-action` was pinned to `@0.28.0`, a tag that no longer exists,
+  causing every workflow run to fail at "Prepare all required actions."
+  Replaced with a commit-SHA pin (not a version tag) to the exact release
+  the aquasecurity maintainers confirmed was **not** affected by the
+  March 2026 supply-chain compromise, in which attackers force-pushed
+  malicious code onto 75 of the repository's 76 version tags. Pinning by
+  tag would not have prevented that attack even for a correct version
+  number, since the tags themselves were rewritten.
+
 ## [v1.1.0] — 2026-07-10
 
 ### Added

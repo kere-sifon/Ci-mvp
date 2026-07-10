@@ -81,7 +81,13 @@ runs:
       run: pip install -r "${{ github.action_path }}/requirements.txt"
 
     - name: Run Trivy filesystem scan
-      uses: aquasecurity/trivy-action@0.28.0
+      # Pinned to a commit SHA, not a version tag — aquasecurity/trivy-action
+      # suffered a supply-chain compromise in March 2026 where attackers
+      # force-pushed malicious code onto 75 of 76 existing version tags.
+      # v0.35.0 (this commit) was confirmed by the maintainers as the one
+      # release NOT affected. Re-verify at the source before ever bumping
+      # this: https://github.com/aquasecurity/trivy-action/releases
+      uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0 — verified safe
       with:
         scan-type: fs
         scan-ref: .
