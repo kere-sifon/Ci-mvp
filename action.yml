@@ -70,11 +70,14 @@ runs:
   using: 'composite'
   steps:
     - name: Set up Python
+      # No pip cache here: github.action_path resolves with a trailing "/."
+      # segment for local `uses: ./` references (this repo's own self-scan),
+      # and actions/setup-python's cache-dependency-path glob validator
+      # rejects any "." or ".." path segment — caching isn't essential here,
+      # so it's simplest to skip it rather than fight path normalization.
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-        cache: pip
-        cache-dependency-path: ${{ github.action_path }}/requirements.txt
 
     - name: Install ci-triage-agent dependencies
       shell: bash

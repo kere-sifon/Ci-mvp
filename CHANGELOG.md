@@ -19,6 +19,11 @@ All notable changes to this project are documented here. Versioning follows
   malicious code onto 75 of the repository's 76 version tags. Pinning by
   tag would not have prevented that attack even for a correct version
   number, since the tags themselves were rewritten.
+- Removed the pip cache from the `Set up Python` step. `github.action_path`
+  resolves with a trailing `/.` segment for local `uses: ./` references
+  (this repo's own self-scan), which `actions/setup-python`'s
+  cache-dependency-path glob validator rejects outright — caching wasn't
+  essential here, so it was simplest to drop rather than normalize the path.
 
 ## [v1.1.0] — 2026-07-10
 
