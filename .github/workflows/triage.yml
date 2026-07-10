@@ -14,6 +14,10 @@ jobs:
   triage:
     name: Scan, triage, and comment
     runs-on: ubuntu-latest
+    # Fail closed for fork PRs regardless of the repo's "fork pull request
+    # workflows" approval setting — this job never assumes the AWS role or
+    # calls Bedrock unless the PR comes from this repo itself.
+    if: github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
       - name: Checkout
