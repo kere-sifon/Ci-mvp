@@ -75,7 +75,51 @@ All tests use fixtures and mock Bedrock — no live API calls in CI.
 
 ### Using this in a different repo (recommended)
 
-This repo is itself a reusable composite [GitHub Action](https://docs.github.com/en/actions/creating-actions/creating-a-composite-action) — `action.yml` at the repo root. Any other repo can call it without copying any source code:
+This repo is itself a reusable composite [GitHub Action](https://docs.github.com/en/actions/creating-actions/creating-a-composite-action) — `action.yml` at the repo root. Any other repo can call it without copying any source code.
+
+**Recommended: OIDC role assumption (no long-lived AWS keys stored anywhere).**
+
+One-time AWS setup (per AWS account — only needs doing once, even if you call this action from many repos):
+
+```bash
+# 1. Create the GitHub OIDC identity provider (skip if one already exists in this account)
+aws iam create-open-id-connect-provider \
+  --url https://token.actions.githubusercontent.com \
+  --client-id-list sts.amazonaws.com \
+  --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
+```
+
+Then create an IAM role trusted by that provider, scoped to your specific repos (replace `ACCOUNT_ID` and `GITHUB_OWNER`):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": { "Federated": "arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com" },
+    "Action": "sts:AssumeRoleWithWebIdentity",
+    "Condition": {
+      "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
+      "StringLike": { "token.actions.githubusercontent.com:sub": "repo:GITHUB_OWNER/*:*" }
+    }
+  }]
+}
+```
+
+Attach a least-privilege permissions policy scoped to just the model you're invoking:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "bedrock:InvokeModel",
+    "Resource": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0"
+  }]
+}
+```
+
+Then, in each calling repo:
 
 ```yaml
 # .github/workflows/triage.yml  (in the OTHER repo)
@@ -88,6 +132,7 @@ on:
 permissions:
   contents: read
   pull-requests: write   # required — this action posts a PR comment
+  id-token: write        # required for OIDC role assumption
 
 jobs:
   triage:
@@ -95,10 +140,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: kere-ekpenyong/Ci-mvp@v1   # replace with your actual owner/repo
+      - uses: kere-sifon/Ci-mvp@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-role-to-assume: arn:aws:iam::ACCOUNT_ID:role/your-role-name
           # everything below is optional — shown with its default value
           # aws-region: us-east-1
           # bedrock-model-id: us.anthropic.claude-haiku-4-5-20251001-v1:0
@@ -108,16 +152,29 @@ jobs:
 
 Pin to `@v1` (a moving tag that always points at the latest `v1.x.y`), not `@main` — `@main` picks up every commit immediately, including anything mid-iteration. See [Releasing a new version](#releasing-a-new-version) below for how tags are cut.
 
-**Requirements for the calling repo:**
-- `permissions: pull-requests: write` at the job or workflow level — composite actions can't set their own permissions, this must come from the caller.
-- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` added as repo (or org) secrets, with Bedrock model access enabled for the target model in that AWS account/region.
+The role ARN isn't sensitive (it's not a credential — the trust policy is what actually restricts access), so it's fine to store it as a repo **variable** rather than a secret, e.g. `${{ vars.CI_TRIAGE_AWS_ROLE_ARN }}`, if you'd rather not hardcode it in the workflow file.
+
+**Fallback: static access keys.** If OIDC setup isn't practical (e.g. a restricted/shared AWS account you don't control IAM on), pass `aws-access-key-id` / `aws-secret-access-key` instead of `aws-role-to-assume` — the action falls back to that automatically:
+
+```yaml
+      - uses: kere-sifon/Ci-mvp@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+This is simpler to set up but means a long-lived credential sits in GitHub Secrets indefinitely — prefer OIDC when you can.
+
+**Requirements for the calling repo either way:**
+- `permissions: pull-requests: write` — composite actions can't set their own permissions, this must come from the caller.
+- `permissions: id-token: write` — only needed for the OIDC path.
 - `actions/checkout@v4` must run *before* this action, since it scans whatever is already checked out at `$GITHUB_WORKSPACE`.
 
 If triggered outside a `pull_request` event (e.g. a manual run or a push), the action still runs the full scan-and-triage pipeline and prints the markdown comment to the job log — it just skips posting to a PR, since there isn't one.
 
 ### Self-scan (this repo)
 
-`.github/workflows/triage.yml` calls the action locally (`uses: ./`) to scan Ci-mvp's own code on every PR — a working example of the pattern above. Local `./` references always use whatever is currently checked out, so version pinning doesn't apply to the self-scan.
+`.github/workflows/triage.yml` calls the action locally (`uses: ./`) using OIDC, to scan Ci-mvp's own code on every PR — a working example of the pattern above. Local `./` references always use whatever is currently checked out, so version pinning doesn't apply to the self-scan.
 
 ### Releasing a new version
 

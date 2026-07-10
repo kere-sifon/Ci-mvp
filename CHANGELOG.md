@@ -8,6 +8,16 @@ All notable changes to this project are documented here. Versioning follows
 - **MINOR** — new input, new capability, backwards-compatible.
 - **PATCH** — bug fix, no interface change.
 
+## [v1.1.0] — 2026-07-10
+
+### Added
+- OIDC role assumption (`aws-role-to-assume`) as the recommended AWS auth
+  path — no long-lived AWS keys need to be stored as GitHub secrets.
+  Existing callers using `aws-access-key-id`/`aws-secret-access-key` are
+  unaffected; that path still works as a documented fallback.
+- Validation step that fails fast with a clear error if neither auth method
+  is configured, instead of a confusing downstream credentials error.
+
 ## [v1.0.0] — 2026-07-10
 
 Initial reusable-action release.

@@ -8,6 +8,7 @@ permissions:
   contents: read
   pull-requests: write
   security-events: write
+  id-token: write   # required for OIDC role assumption (no long-lived AWS keys)
 
 jobs:
   triage:
@@ -20,12 +21,11 @@ jobs:
 
       # Dogfoods this repo's own composite action (./action.yml) against
       # itself. Other repos reference this the same way, but with
-      # `uses: <owner>/Ci-mvp@main` instead of a local `./` path.
+      # `uses: <owner>/Ci-mvp@v1` instead of a local `./` path.
       - name: Run ci-triage-agent (self-scan)
         uses: ./
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-role-to-assume: ${{ vars.CI_TRIAGE_AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
           bedrock-model-id: ${{ vars.BEDROCK_MODEL_ID || 'us.anthropic.claude-haiku-4-5-20251001-v1:0' }}
 
