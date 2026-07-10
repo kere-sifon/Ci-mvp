@@ -75,7 +75,7 @@ runs:
       # and actions/setup-python's cache-dependency-path glob validator
       # rejects any "." or ".." path segment — caching isn't essential here,
       # so it's simplest to skip it rather than fight path normalization.
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
       with:
         python-version: '3.11'
 
@@ -101,9 +101,11 @@ runs:
 
     - name: Run Semgrep
       shell: bash
+      env:
+        SEMGREP_CONFIG: ${{ inputs.semgrep-config }}
       run: |
         pip install semgrep
-        semgrep scan --config "${{ inputs.semgrep-config }}" --json \
+        semgrep scan --config "$SEMGREP_CONFIG" --json \
           --output semgrep-results.json . || true
         if [ ! -f semgrep-results.json ]; then
           echo '{"results": []}' > semgrep-results.json
@@ -111,16 +113,20 @@ runs:
 
     - name: Validate AWS auth inputs
       shell: bash
+      env:
+        ROLE_TO_ASSUME: ${{ inputs.aws-role-to-assume }}
+        ACCESS_KEY_ID: ${{ inputs.aws-access-key-id }}
+        SECRET_ACCESS_KEY: ${{ inputs.aws-secret-access-key }}
       run: |
-        if [ -z "${{ inputs.aws-role-to-assume }}" ] && \
-           { [ -z "${{ inputs.aws-access-key-id }}" ] || [ -z "${{ inputs.aws-secret-access-key }}" ]; }; then
+        if [ -z "$ROLE_TO_ASSUME" ] && \
+           { [ -z "$ACCESS_KEY_ID" ] || [ -z "$SECRET_ACCESS_KEY" ]; }; then
           echo "::error::Provide either 'aws-role-to-assume' (recommended, OIDC) or both 'aws-access-key-id' and 'aws-secret-access-key'."
           exit 1
         fi
 
     - name: Configure AWS credentials (OIDC)
       if: inputs.aws-role-to-assume != ''
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
       with:
         role-to-assume: ${{ inputs.aws-role-to-assume }}
         role-session-name: ${{ inputs.aws-role-session-name }}
@@ -128,7 +134,7 @@ runs:
 
     - name: Configure AWS credentials (static keys)
       if: inputs.aws-role-to-assume == ''
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
       with:
         aws-access-key-id: ${{ inputs.aws-access-key-id }}
         aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
@@ -136,8 +142,11 @@ runs:
 
     # action.yml input `default:` fields can't use ${{ }} expressions (unlike
     # `with:` in a workflow), so the pull_request-number fallback is resolved
-    # here instead, in the run: script — expressions ARE evaluated in run:
-    # steps regardless of composite vs. workflow context.
+    # via the expression below — expressions ARE evaluated in `env:` regardless
+    # of composite vs. workflow context, and routing it through env: (rather
+    # than interpolating directly into the run: script) keeps this consistent
+    # with the other steps, even though github.event.pull_request.number is a
+    # GitHub-assigned integer, not attacker-controllable free text.
     - name: Run ci-triage-agent
       shell: bash
       working-directory: ${{ github.action_path }}
@@ -149,8 +158,8 @@ runs:
         BEDROCK_TEMPERATURE: ${{ inputs.bedrock-temperature }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_REPOSITORY: ${{ github.repository }}
+        PR_NUMBER: ${{ inputs.pr-number || github.event.pull_request.number }}
       run: |
-        PR_NUMBER="${{ inputs.pr-number || github.event.pull_request.number }}"
         if [ -n "$PR_NUMBER" ]; then
           python -m src.cli \
             --trivy-file "${{ github.workspace }}/trivy-results.json" \

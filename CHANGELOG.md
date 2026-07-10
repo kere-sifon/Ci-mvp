@@ -8,6 +8,23 @@ All notable changes to this project are documented here. Versioning follows
 - **MINOR** — new input, new capability, backwards-compatible.
 - **PATCH** — bug fix, no interface change.
 
+## [v1.1.2] — 2026-07-10
+
+### Fixed
+- SHA-pinned every third-party action referenced from `action.yml` and
+  `triage.yml` (`actions/checkout`, `actions/setup-python`,
+  `aws-actions/configure-aws-credentials`) instead of floating major-version
+  tags. Caught by the tool's own self-scan — `trivy-action` had already been
+  pinned after the March 2026 incident, but these three were still on
+  mutable tags, an inconsistency Semgrep correctly flagged as a real finding.
+- Routed all remaining `${{ }}` interpolations in `run:` steps through
+  `env:` blocks instead of direct shell substitution (Semgrep
+  `run-shell-injection`, 3 instances). None were exploitable today — two are
+  the action's own declared inputs (not attacker-controlled), and the third
+  (`github.event.pull_request.number`) is a GitHub-assigned integer, never
+  freeform text — but routing through `env:` is the established hardening
+  pattern regardless, and removes any ambiguity for future edits.
+
 ## [v1.1.1] — 2026-07-10
 
 ### Fixed
