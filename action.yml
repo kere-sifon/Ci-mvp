@@ -65,6 +65,22 @@ inputs:
       runs and prints the triage comment to the job log without posting.
     required: false
     default: ''
+  s3-bucket:
+    description: >
+      S3 bucket to upload raw trivy.json/semgrep.json to, for downstream
+      consumption (e.g. the ci-triage-mcp server). Leave unset to skip
+      upload entirely. Uses whichever AWS credentials are already
+      configured for Bedrock (aws-role-to-assume or static keys), so the
+      same role needs s3:PutObject scoped to this bucket/prefix.
+    required: false
+    default: ''
+  s3-prefix:
+    description: >
+      Optional key prefix under s3-bucket, e.g. "ci-triage". Objects land at
+      s3://{s3-bucket}/{s3-prefix}/{repo_slug}/{sha}/trivy.json (and
+      semgrep.json). Leave unset to write directly under the bucket root.
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -139,6 +155,32 @@ runs:
         aws-access-key-id: ${{ inputs.aws-access-key-id }}
         aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
         aws-region: ${{ inputs.aws-region }}
+
+    - name: Upload scan results to S3
+      # Optional hand-off point for downstream consumers (e.g. the
+      # ci-triage-mcp server) to read raw scan output without re-running
+      # scans. Skipped entirely if s3-bucket isn't set. Reuses whichever
+      # AWS credentials were configured above for Bedrock — the same
+      # role/user needs s3:PutObject scoped to this bucket/prefix.
+      if: inputs.s3-bucket != ''
+      shell: bash
+      env:
+        S3_BUCKET: ${{ inputs.s3-bucket }}
+        S3_PREFIX: ${{ inputs.s3-prefix }}
+      run: |
+        # Matches the MCP server's _repo_slug(): non-alphanumeric/._- chars
+        # become "__". For standard "org/repo" names this is just the "/".
+        REPO_SLUG="${GITHUB_REPOSITORY//\//__}"
+        DEST="s3://${S3_BUCKET}"
+        if [ -n "${S3_PREFIX}" ]; then
+          DEST="${DEST}/${S3_PREFIX}"
+        fi
+        DEST="${DEST}/${REPO_SLUG}/${GITHUB_SHA}"
+
+        aws s3 cp "${{ github.workspace }}/trivy-results.json" "${DEST}/trivy.json"
+        aws s3 cp "${{ github.workspace }}/semgrep-results.json" "${DEST}/semgrep.json"
+
+        echo "Uploaded scan results to ${DEST}/"
 
     # action.yml input `default:` fields can't use ${{ }} expressions (unlike
     # `with:` in a workflow), so the pull_request-number fallback is resolved
